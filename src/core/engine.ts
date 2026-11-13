@@ -1,5 +1,20 @@
 import type { Template, RunState, Hooks, Step, AgentStep, Value } from "./types.ts";
 
+export function outputInstruction(fields: Record<string, string>): string {
+  return `\n\nFinish your reply with a single JSON object (in a \`\`\`json block) with exactly these fields: ${JSON.stringify(fields)}`;
+}
+
+/** Take the last JSON object in the text; fall back to {raw}. */
+export function parseJsonOutput(text: string): Record<string, unknown> {
+  const fenced = [...text.matchAll(/```(?:json)?\s*([\s\S]*?)```/g)].map((m) => m[1]);
+  const braces = text.match(/\{[\s\S]*\}/);
+  for (const c of [...fenced.reverse(), braces?.[0]]) {
+    if (!c) continue;
+    try { const v = JSON.parse(c); if (v && typeof v === "object") return { ...v, raw: text }; } catch {}
+  }
+  return { raw: text };
+}
+
 export function newState(t: Template, input: string): RunState {
   return { template: t.name, input, cursor: 0, outputs: {}, loops: {}, status: "running" };
 }
@@ -34,12 +49,15 @@ export async function runWorkflow(t: Template, state: RunState, hooks: Hooks): P
 
   const exec = async (step: AgentStep): Promise<Value> => {
     emit("step:start", step.id);
-    const out = await hooks.runStep({
+    let prompt = render(step.prompt, state);
+    if (step.output) prompt += outputInstruction(step.output);
+    let out = await hooks.runStep({
       step,
-      prompt: render(step.prompt, state),
+      prompt,
       model: step.model ?? t.defaults?.model,
       tools: step.tools ?? t.defaults?.tools,
     });
+    if (step.output && typeof out === "string") out = parseJsonOutput(out);
     emit("step:done", step.id);
     return out;
   };

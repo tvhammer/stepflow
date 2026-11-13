@@ -38,3 +38,12 @@ test("parallel step stores each output", async () => {
   const s = await runWorkflow(tpl("text-processing"), newState(tpl("text-processing"), "hi"), hooks);
   assert.ok(s.outputs.translation && s.outputs.keypoints && s.outputs.final);
 });
+
+test("structured output is parsed from model text", async () => {
+  const hooks: Hooks = {
+    async runStep({ step }) { return step.id === "review" ? 'ok\n```json\n{"verdict":"pass"}\n```' : "x"; },
+    async askHuman() { return { action: "approve" }; },
+  };
+  const s = await runWorkflow(tpl("dev-flow"), newState(tpl("dev-flow"), "x"), hooks);
+  assert.equal((s.outputs.review as any).verdict, "pass");
+});

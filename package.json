@@ -1,0 +1,13 @@
+{
+  "name": "stepflow",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Small interactive workflow runner: sequential steps, human gates, bounded loops, per-step models.",
+  "scripts": {
+    "test": "node --test tests/*.test.ts",
+    "run": "node src/adapters/cli/main.ts"
+  },
+  "dependencies": { "yaml": "^2.5.0" },
+  "pi": { "extensions": ["./src/adapters/pi/extension.ts"] }
+}

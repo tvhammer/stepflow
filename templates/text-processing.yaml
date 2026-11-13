@@ -1,0 +1,14 @@
+name: text-processing
+description: Summarise, then translate and extract key points in parallel, then polish.
+steps:
+  - id: summarise
+    prompt: "Summarise the following text in 5 sentences:\n{{input}}"
+  - id: variants
+    parallel:
+      - { id: translation, prompt: "Translate to German:\n{{summarise}}" }
+      - { id: keypoints,   prompt: "List the 5 key points:\n{{summarise}}" }
+  - id: check
+    gate: human
+    show: variants
+  - id: final
+    prompt: "Combine into one polished document:\n{{translation}}\n\n{{keypoints}}"

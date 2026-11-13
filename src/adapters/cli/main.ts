@@ -76,7 +76,14 @@ async function makeHooks(id: string, dry: boolean): Promise<Hooks> {
 }
 
 async function drive(t: Template, state: RunState, id: string, dry: boolean) {
-  const s = await runWorkflow(t, state, await makeHooks(id, dry));
+  if (!dry) {
+    const { preflight, templateModels } = await import("../pi/steps.ts");
+    const problems = await preflight(templateModels(t));
+    if (problems.length) die(problems.join("\n") + "\nEdit the model ids in the template.");
+  }
+  let s: RunState;
+  try { s = await runWorkflow(t, state, await makeHooks(id, dry)); }
+  catch (e) { saveRun(cwd, id, state); die(`\nStep failed: ${(e as Error).message}\nRetry from that step with: stepflow resume ${id}`); }
   if (s.status === "paused") {
     const gate: any = t.steps[s.cursor];
     const n = gate.show ? s.history[gate.show]?.length : 0;

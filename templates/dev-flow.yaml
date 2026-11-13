@@ -4,10 +4,10 @@ params:
   APP_NAME: { description: "Name of the application", required: true }
   TEST_CMD: { description: "Command that runs the tests", default: "npm test" }
 defaults:
-  model: anthropic/claude-sonnet-4-5
+  model: openrouter/~anthropic/claude-sonnet-latest
 steps:
   - id: design
-    model: anthropic/claude-opus-4-5
+    model: openrouter/~anthropic/claude-opus-latest
     prompt: |
       Write a concise design for the application "{{APP_NAME}}". Do not write code.
       Task: {{input}}
@@ -18,7 +18,7 @@ steps:
     reviseTo: design
     instructions: Review the design. Edit it if you like, then approve or ask for changes.
   - id: implement
-    model: openai/gpt-5
+    model: openrouter/~openai/gpt-sol-latest
     tools: [read, edit, write, bash]
     prompt: |
       Implement "{{APP_NAME}}" in the current project following this design:

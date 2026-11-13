@@ -21,3 +21,17 @@ export async function createStepRunner(cwd: string, fallbackModel?: any, signal?
     } finally { session.dispose(); }
   };
 }
+
+/** Returns a list of problems (unknown model or no credentials) for the given "provider/model" ids. */
+export async function preflight(ids: string[]): Promise<string[]> {
+  const rt = await ModelRuntime.create();
+  const available = new Set((await rt.getAvailable()).map((m) => `${m.provider}/${m.id}`));
+  return [...new Set(ids)].filter((id) => !available.has(id)).map((id) => `Model '${id}' is not available (unknown, or no API key). Run \`pi --list-models\`.`);
+}
+
+export function templateModels(t: { defaults?: { model?: string }; steps: any[] }): string[] {
+  const out: string[] = [];
+  if (t.defaults?.model) out.push(t.defaults.model);
+  for (const s of t.steps) for (const x of s.parallel ?? [s]) if (x.model) out.push(x.model);
+  return out;
+}

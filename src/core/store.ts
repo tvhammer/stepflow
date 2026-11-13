@@ -1,15 +1,21 @@
 import { mkdirSync, readFileSync, writeFileSync, readdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { parseTemplate } from "./template.ts";
-import type { RunState, Template } from "./types.ts";
+import type { RunState, Template, Value } from "./types.ts";
 
 export interface SavedRun { id: string; state: RunState; }
 
-export function runsDir(cwd: string) { return join(cwd, ".stepflow", "runs"); }
+export const runsDir = (cwd: string) => join(cwd, ".stepflow", "runs");
 
 export function saveRun(cwd: string, id: string, state: RunState) {
   mkdirSync(runsDir(cwd), { recursive: true });
   writeFileSync(join(runsDir(cwd), `${id}.json`), JSON.stringify(state, null, 2));
+}
+
+export function loadRun(cwd: string, id: string): RunState {
+  const f = join(runsDir(cwd), `${id}.json`);
+  if (!existsSync(f)) throw new Error(`No such run: ${id}`);
+  return JSON.parse(readFileSync(f, "utf8")) as RunState;
 }
 
 export function listRuns(cwd: string): SavedRun[] {
@@ -18,6 +24,16 @@ export function listRuns(cwd: string): SavedRun[] {
   return readdirSync(d).filter((f) => f.endsWith(".json")).sort().map((f) => ({
     id: f.slice(0, -5), state: JSON.parse(readFileSync(join(d, f), "utf8")) as RunState,
   }));
+}
+
+/** Writes a readable copy of a step output, e.g. .stepflow/runs/<id>/design-1.md. Returns the path. */
+export function writeArtifact(cwd: string, runId: string, stepId: string, iteration: number, v: Value): string {
+  const dir = join(runsDir(cwd), runId);
+  mkdirSync(dir, { recursive: true });
+  const f = join(dir, `${stepId}-${iteration}.md`);
+  const body = typeof v === "string" ? v : typeof (v as any).raw === "string" ? (v as any).raw : JSON.stringify(v, null, 2);
+  writeFileSync(f, body);
+  return f;
 }
 
 /** Templates from the given directories; earlier directories win on name clashes. */

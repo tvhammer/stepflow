@@ -1,26 +1,38 @@
 name: dev-flow
-description: Design -> human approval -> implement -> review (loops back on failure).
+description: Design -> human approval -> implement -> test/review, looping back to implement on failure.
+params:
+  APP_NAME: { description: "Name of the application", required: true }
+  TEST_CMD: { description: "Command that runs the tests", default: "npm test" }
 defaults:
   model: anthropic/claude-sonnet-4-5
 steps:
   - id: design
     model: anthropic/claude-opus-4-5
     prompt: |
-      Write a concise design for the following task. Do not write code.
+      Write a concise design for the application "{{APP_NAME}}". Do not write code.
       Task: {{input}}
+      {{accept.feedback}}
   - id: accept
     gate: human
     show: design
     reviseTo: design
+    instructions: Review the design. Edit it if you like, then approve or ask for changes.
   - id: implement
     model: openai/gpt-5
     tools: [read, edit, write, bash]
     prompt: |
-      Implement this design in the current project:
+      Implement "{{APP_NAME}}" in the current project following this design:
       {{design}}
+
+      Problems found in earlier attempts (fix these; empty on the first attempt):
+      {{test.output}}
+      {{review.notes}}
+  - id: test
+    run: "{{TEST_CMD}}"
+    on: { when: "test.exitCode != 0", goto: implement, max: 3 }
   - id: review
     prompt: |
-      Review the changes made against this design and run the tests.
-      Design: {{design}}
+      Review the changes made for "{{APP_NAME}}" against this design:
+      {{design}}
     output: { verdict: "pass|fail", notes: "string" }
     on: { when: "review.verdict == fail", goto: implement, max: 2 }

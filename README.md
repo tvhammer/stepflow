@@ -15,6 +15,13 @@ template parameters.
     npm link @earendil-works/pi-coding-agent   # CLI/extension use the globally installed pi
     npm test
 
+## Before the first run: models
+
+The bundled examples use OpenRouter model ids (`openrouter/~anthropic/claude-opus-latest`, ...).
+If you use other providers, run `pi --list-models` and edit the `model:` lines (format
+`provider/model-id`). Steps without a `model:` use your pi default. stepflow checks all
+models before starting and tells you which ones are unavailable.
+
 ## CLI
 
     alias stepflow='node ~/stepflow/src/adapters/cli/main.ts'

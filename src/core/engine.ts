@@ -3,7 +3,7 @@ import { resolveParams } from "./template.ts";
 
 export function newState(t: Template, input: string, params: Record<string, string> = {}): RunState {
   return {
-    template: t.name, input, params: resolveParams(t, params), cursor: 0,
+    template: t.id ?? t.name, input, params: resolveParams(t, params), cursor: 0,
     outputs: {}, history: {}, loops: {}, status: "running",
   };
 }

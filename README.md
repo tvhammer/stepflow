@@ -77,3 +77,16 @@ Search order (first match for a template name wins): `-t` dirs, `$STEPFLOW_TEMPL
 `<cwd>/.stepflow/templates`, `<cwd>/workflows`, built-in `templates/` (examples; safe to delete).
 `resume` and `status` use the same search path, so keep the variable set (or pass `-t` again).
 Run state and artifacts always go to `<cwd>/.stepflow/`, i.e. the project being worked on, not either repo.
+
+### Layout of a workflows repo
+
+    ai-workflows/
+      photo/cull.yaml          -> stepflow run photo/cull
+      photo/caption.yaml
+      trading/daily-review.yaml
+      dev/dev-flow.yaml
+
+Folders are searched recursively. A template's id is its path without extension
+(`photo/cull`); `name:` is optional and defaults to the id. Invalid YAML files are
+skipped with a message instead of breaking the whole list. Run ids look like
+`photo_cull-<timestamp>`.

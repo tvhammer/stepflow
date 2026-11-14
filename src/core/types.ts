@@ -48,6 +48,8 @@ export interface ParamDef {
 
 export interface Template {
   name: string;
+  /** Set by the loader: path relative to the template dir, e.g. "photo/cull". */
+  id?: string;
   description?: string;
   /** Named parameters, usable as {{NAME}} in prompts and commands. */
   params?: Record<string, ParamDef>;

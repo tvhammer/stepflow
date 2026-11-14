@@ -12,7 +12,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  runWorkflow, newState, loadTemplates, templateDirs, listRuns, loadRun, saveRun, writeArtifact, runShell,
+  runWorkflow, newState, loadTemplates, findTemplate, templateDirs, listRuns, loadRun, saveRun, writeArtifact, runShell,
   runsDir,
 } from "../../index.ts";
 import type { Hooks, Template, RunState, GateDecision } from "../../index.ts";
@@ -48,7 +48,7 @@ function usage() {
 
 function describe(t: Template) {
   const ps = Object.entries(t.params ?? {}).map(([k, d]) => `      ${k}${d.default ? `=${d.default}` : ""}${d.required === false || d.default ? "" : " (required)"} ${d.description ?? ""}`);
-  return `  ${t.name} – ${t.description ?? ""}${ps.length ? "\n" + ps.join("\n") : ""}`;
+  return `  ${t.id ?? t.name} – ${t.description ?? ""}${ps.length ? "\n" + ps.join("\n") : ""}`;
 }
 
 async function makeHooks(id: string, dry: boolean): Promise<Hooks> {
@@ -110,7 +110,7 @@ if (o.help || !cmd) { usage(); process.exit(cmd ? 0 : 1); }
 if (cmd === "list") {
   console.log(templates().map(describe).join("\n") || "No templates");
 } else if (cmd === "run") {
-  const t = templates().find((x) => x.name === arg) ?? die(`Unknown template '${arg}'. Try: stepflow list`);
+  const t = findTemplate(templates(), arg) ?? die(`Unknown template '${arg}'. Try: stepflow list`);
   const params: Record<string, string> = {};
   for (const kv of o.param ?? []) {
     const i = kv.indexOf("=");
@@ -120,13 +120,13 @@ if (cmd === "list") {
   const input = o["input-file"] ? readFileSync(o["input-file"], "utf8") : (o.input ?? "");
   let state: RunState;
   try { state = newState(t, input, params); } catch (e) { die((e as Error).message + "\n\n" + describe(t)); }
-  const id = `${t.name}-${new Date().toISOString().replace(/[:.]/g, "-")}`;
+  const id = `${(t.id ?? t.name).replace(/\//g, "_")}-${new Date().toISOString().replace(/[:.]/g, "-")}`;
   console.log(`Run ${id}`);
   await drive(t, state, id, !!o["dry-run"]);
 } else if (cmd === "resume") {
   if (!arg) die("Usage: stepflow resume <runId> [--approve | --revise text | --abort]");
   const state = loadRun(cwd, arg);
-  const t = templates().find((x) => x.name === state.template) ?? die(`Template '${state.template}' not found`);
+  const t = findTemplate(templates(), state.template) ?? die(`Template '${state.template}' not found`);
   if (state.status === "done" || state.status === "aborted") die(`Run is already ${state.status}`);
   let d: GateDecision | undefined;
   if (o.approve) d = { action: "approve" };
@@ -151,7 +151,7 @@ if (cmd === "list") {
 } else if (cmd === "status") {
   const runs = arg ? [{ id: arg, state: loadRun(cwd, arg) }] : listRuns(cwd);
   for (const r of runs) {
-    const step: any = templates().find((x) => x.name === r.state.template)?.steps[r.state.cursor];
+    const step: any = findTemplate(templates(), r.state.template)?.steps[r.state.cursor];
     console.log(`${r.id}  ${r.state.status}${r.state.status === "paused" ? ` at '${step?.id}'` : ""}`);
   }
   if (!runs.length) console.log("No runs");

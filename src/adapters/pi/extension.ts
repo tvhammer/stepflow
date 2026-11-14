@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import { join, dirname } from "node:path";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { createStepRunner } from "./steps.ts";
-import { runWorkflow, newState, loadTemplates, templateDirs, listRuns, saveRun, writeArtifact, runShell } from "../../index.ts";
+import { runWorkflow, newState, loadTemplates, findTemplate, templateDirs, listRuns, saveRun, writeArtifact, runShell } from "../../index.ts";
 import type { Hooks, Template, RunState, Value } from "../../index.ts";
 
 const BUILTIN_TEMPLATES = join(dirname(fileURLToPath(import.meta.url)), "../../../templates");
@@ -78,11 +78,11 @@ export default function (pi: ExtensionAPI) {
       const templates = loadTemplates(templateDirs(ctx.cwd, BUILTIN_TEMPLATES));
 
       if (!sub || sub === "list") {
-        ctx.ui.notify(templates.map((t) => `${t.name} – ${t.description ?? ""}`).join("\n") || "No templates", "info");
+        ctx.ui.notify(templates.map((t) => `${t.id ?? t.name} – ${t.description ?? ""}`).join("\n") || "No templates", "info");
         return;
       }
       if (sub === "run") {
-        const t = templates.find((x) => x.name === name);
+        const t = findTemplate(templates, name);
         if (!t) return ctx.ui.notify(`Unknown workflow '${name}'`, "error");
         // NAME=value tokens are parameters, the rest is the input text.
         const params: Record<string, string> = {};
@@ -96,7 +96,7 @@ export default function (pi: ExtensionAPI) {
           }
         }
         const input = words.join(" ") || (await ctx.ui.input("Input for the workflow:", "")) || "";
-        const id = `${t.name}-${new Date().toISOString().replace(/[:.]/g, "-")}`;
+        const id = `${(t.id ?? t.name).replace(/\//g, "_")}-${new Date().toISOString().replace(/[:.]/g, "-")}`;
         return execute(pi, ctx, t, newState(t, input, params), id);
       }
       if (sub === "resume") {
@@ -104,7 +104,7 @@ export default function (pi: ExtensionAPI) {
         if (!runs.length) return ctx.ui.notify("Nothing to resume", "info");
         const pick = await ctx.ui.select("Resume which run?", runs.map((r) => r.id));
         const run = runs.find((r) => r.id === pick);
-        const t = run && templates.find((x) => x.name === run.state.template);
+        const t = run && findTemplate(templates, run.state.template);
         if (!run || !t) return;
         return execute(pi, ctx, t, run.state, run.id);
       }

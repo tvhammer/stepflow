@@ -7,7 +7,7 @@ template parameters.
 - `src/core` – engine (no pi dependency): `runWorkflow(template, state, hooks)`
 - `src/adapters/cli` – `stepflow` command; pauses at human gates and exits
 - `src/adapters/pi` – pi extension (`/workflow`); each step = own in-memory pi session
-- `templates/` – example workflows (YAML)
+- `examples/` – example workflows (YAML), usable right away
 
 ## Setup
 
@@ -63,7 +63,7 @@ also written as `<runId>/<step>-<iteration>.md`.
     /workflow run dev-flow APP_NAME=todo build a small todo CLI
     /workflow resume
 
-Templates are read from `.stepflow/templates/`, `workflows/` (in the project), then the built-in `templates/`.
+Templates are read from `.stepflow/templates/`, `workflows/` (in the project), then the bundled `examples/`.
 
 ## Keeping workflows in a separate repo
 
@@ -74,7 +74,7 @@ stepflow at the definitions with either:
     stepflow run dev-flow -t ~/work/my-workflows -p APP_NAME=x   # per call
 
 Search order (first match for a template name wins): `-t` dirs, `$STEPFLOW_TEMPLATES`,
-`<cwd>/.stepflow/templates`, `<cwd>/workflows`, built-in `templates/` (examples; safe to delete).
+`<cwd>/.stepflow/templates`, `<cwd>/workflows`, `examples/` (ready-to-run samples; the lowest priority, so your own always win).
 `resume` and `status` use the same search path, so keep the variable set (or pass `-t` again).
 Run state and artifacts always go to `<cwd>/.stepflow/`, i.e. the project being worked on, not either repo.
 

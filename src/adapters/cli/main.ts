@@ -17,7 +17,7 @@ import {
 } from "../../index.ts";
 import type { Hooks, Template, RunState, GateDecision } from "../../index.ts";
 
-const BUILTIN = join(dirname(fileURLToPath(import.meta.url)), "../../../templates");
+const BUILTIN = join(dirname(fileURLToPath(import.meta.url)), "../../../examples");
 const { values: o, positionals: pos } = parseArgs({
   allowPositionals: true,
   options: {
@@ -43,7 +43,7 @@ function usage() {
   stepflow list
   stepflow run <template> [-p NAME=value]... [--input text | --input-file file] [--dry-run] [--cwd dir] [-t templatesDir]...
   stepflow resume <runId> [--approve | --revise "feedback" | --abort]
-  stepflow status [runId]\n\nTemplate dirs: -t <dir> (repeatable), $STEPFLOW_TEMPLATES, <cwd>/workflows, built-in examples.`);
+  stepflow status [runId]\n\nTemplate dirs: -t <dir> (repeatable), $STEPFLOW_TEMPLATES, <cwd>/workflows, bundled examples.`);
 }
 
 function describe(t: Template) {

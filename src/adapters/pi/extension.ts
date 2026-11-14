@@ -10,7 +10,7 @@ import { createStepRunner } from "./steps.ts";
 import { runWorkflow, newState, loadTemplates, findTemplate, templateDirs, listRuns, saveRun, writeArtifact, runShell } from "../../index.ts";
 import type { Hooks, Template, RunState, Value } from "../../index.ts";
 
-const BUILTIN_TEMPLATES = join(dirname(fileURLToPath(import.meta.url)), "../../../templates");
+const BUILTIN_TEMPLATES = join(dirname(fileURLToPath(import.meta.url)), "../../../examples");
 
 
 const short = (v: Value | undefined, n = 600) => {

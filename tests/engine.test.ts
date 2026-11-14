@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { parseTemplate, runWorkflow, newState } from "../src/index.ts";
 import type { Hooks, GateDecision } from "../src/index.ts";
 
-const tpl = (n: string) => parseTemplate(readFileSync(new URL(`../templates/${n}.yaml`, import.meta.url), "utf8"));
+const tpl = (n: string) => parseTemplate(readFileSync(new URL(`../examples/${n}.yaml`, import.meta.url), "utf8"));
 const dev = () => newState(tpl("dev-flow"), "x", { APP_NAME: "demo" });
 
 function fake(decisions: GateDecision[], o: { verdicts?: string[]; tests?: number[] } = {}) {

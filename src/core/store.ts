@@ -1,5 +1,5 @@
 import { mkdirSync, readFileSync, writeFileSync, readdirSync, existsSync } from "node:fs";
-import { join } from "node:path";
+import { join, delimiter, resolve } from "node:path";
 import { parseTemplate } from "./template.ts";
 import type { RunState, Template, Value } from "./types.ts";
 
@@ -47,4 +47,13 @@ export function loadTemplates(dirs: string[]): Template[] {
     }
   }
   return [...seen.values()];
+}
+
+/**
+ * Template search path, highest priority first:
+ * --templates dirs, $STEPFLOW_TEMPLATES (path-list), <cwd>/.stepflow/templates, <cwd>/workflows, then `builtin`.
+ */
+export function templateDirs(cwd: string, builtin: string, extra: string[] = []): string[] {
+  const env = (process.env.STEPFLOW_TEMPLATES ?? "").split(delimiter).filter(Boolean);
+  return [...extra, ...env, join(cwd, ".stepflow", "templates"), join(cwd, "workflows"), builtin].map((d) => resolve(cwd, d));
 }

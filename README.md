@@ -64,3 +64,16 @@ also written as `<runId>/<step>-<iteration>.md`.
     /workflow resume
 
 Templates are read from `.stepflow/templates/`, `workflows/` (in the project), then the built-in `templates/`.
+
+## Keeping workflows in a separate repo
+
+The tool and your workflow definitions can live in different repos. Point
+stepflow at the definitions with either:
+
+    export STEPFLOW_TEMPLATES=~/work/my-workflows          # several dirs: separate with ':'
+    stepflow run dev-flow -t ~/work/my-workflows -p APP_NAME=x   # per call
+
+Search order (first match for a template name wins): `-t` dirs, `$STEPFLOW_TEMPLATES`,
+`<cwd>/.stepflow/templates`, `<cwd>/workflows`, built-in `templates/` (examples; safe to delete).
+`resume` and `status` use the same search path, so keep the variable set (or pass `-t` again).
+Run state and artifacts always go to `<cwd>/.stepflow/`, i.e. the project being worked on, not either repo.

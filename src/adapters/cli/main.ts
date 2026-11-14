@@ -12,7 +12,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  runWorkflow, newState, loadTemplates, listRuns, loadRun, saveRun, writeArtifact, runShell,
+  runWorkflow, newState, loadTemplates, templateDirs, listRuns, loadRun, saveRun, writeArtifact, runShell,
   runsDir,
 } from "../../index.ts";
 import type { Hooks, Template, RunState, GateDecision } from "../../index.ts";
@@ -25,6 +25,7 @@ const { values: o, positionals: pos } = parseArgs({
     input: { type: "string", short: "i" },
     "input-file": { type: "string" },
     cwd: { type: "string" },
+    templates: { type: "string", short: "t", multiple: true },
     "dry-run": { type: "boolean" },
     approve: { type: "boolean" },
     revise: { type: "string" },
@@ -35,14 +36,14 @@ const { values: o, positionals: pos } = parseArgs({
 const cwd = resolve(o.cwd ?? process.cwd());
 const [cmd, arg] = pos;
 const die = (m: string): never => { console.error(m); process.exit(1); };
-const templates = () => loadTemplates([join(cwd, ".stepflow", "templates"), join(cwd, "workflows"), BUILTIN]);
+const templates = () => loadTemplates(templateDirs(cwd, BUILTIN, o.templates));
 
 function usage() {
   console.log(`Usage:
   stepflow list
-  stepflow run <template> [-p NAME=value]... [--input text | --input-file file] [--dry-run] [--cwd dir]
+  stepflow run <template> [-p NAME=value]... [--input text | --input-file file] [--dry-run] [--cwd dir] [-t templatesDir]...
   stepflow resume <runId> [--approve | --revise "feedback" | --abort]
-  stepflow status [runId]`);
+  stepflow status [runId]\n\nTemplate dirs: -t <dir> (repeatable), $STEPFLOW_TEMPLATES, <cwd>/workflows, built-in examples.`);
 }
 
 function describe(t: Template) {

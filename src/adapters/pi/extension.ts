@@ -7,12 +7,11 @@ import { fileURLToPath } from "node:url";
 import { join, dirname } from "node:path";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { createStepRunner } from "./steps.ts";
-import { runWorkflow, newState, loadTemplates, listRuns, saveRun, writeArtifact, runShell } from "../../index.ts";
+import { runWorkflow, newState, loadTemplates, templateDirs, listRuns, saveRun, writeArtifact, runShell } from "../../index.ts";
 import type { Hooks, Template, RunState, Value } from "../../index.ts";
 
 const BUILTIN_TEMPLATES = join(dirname(fileURLToPath(import.meta.url)), "../../../templates");
 
-const templateDirs = (cwd: string) => [join(cwd, ".stepflow", "templates"), join(cwd, "workflows"), BUILTIN_TEMPLATES];
 
 const short = (v: Value | undefined, n = 600) => {
   const s = v === undefined ? "" : typeof v === "string" ? v : JSON.stringify(v, null, 2);
@@ -76,7 +75,7 @@ export default function (pi: ExtensionAPI) {
     description: "Run a workflow: /workflow list | run <name> [NAME=value ...] <input> | resume",
     handler: async (args, ctx) => {
       const [sub, name, ...rest] = args.trim().split(/\s+/);
-      const templates = loadTemplates(templateDirs(ctx.cwd));
+      const templates = loadTemplates(templateDirs(ctx.cwd, BUILTIN_TEMPLATES));
 
       if (!sub || sub === "list") {
         ctx.ui.notify(templates.map((t) => `${t.name} – ${t.description ?? ""}`).join("\n") || "No templates", "info");

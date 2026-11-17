@@ -20,7 +20,7 @@ const short = (v: Value | undefined, n = 600) => {
 
 async function execute(pi: ExtensionAPI, ctx: ExtensionCommandContext, t: Template, state: RunState, id: string) {
   const stop = new AbortController();
-  const runStep = await createStepRunner(ctx.cwd, ctx.model, stop.signal);
+  const runStep = await createStepRunner(ctx.cwd, ctx.model, stop.signal, (line) => ctx.ui.setStatus("stepflow", line.trim()));
 
   const hooks: Hooks = {
     runStep,

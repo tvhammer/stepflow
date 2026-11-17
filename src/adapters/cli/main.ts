@@ -15,7 +15,7 @@ import { spawnSync } from "node:child_process";
 import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  runWorkflow, newState, loadTemplates, findTemplate, templateDirs, listRuns, loadRun, saveRun, writeArtifact, runShell,
+  runWorkflow, newState, dryRunProblem, loadTemplates, findTemplate, templateDirs, listRuns, loadRun, saveRun, writeArtifact, runShell,
   runsDir,
 } from "../../index.ts";
 import type { Hooks, Template, RunState, GateDecision } from "../../index.ts";
@@ -64,7 +64,7 @@ async function makeHooks(id: string, dry: boolean): Promise<Hooks> {
     console.log(`\n[dry-run ${step.id}] model=${model ?? "default"}\n${prompt}`);
     return step.output ? JSON.stringify({ verdict: "pass", notes: "dry" }) : `(dry-run output of ${step.id})`;
   };
-  else runStep = await (await import("../pi/steps.ts")).createStepRunner(cwd);
+  else runStep = await (await import("../pi/steps.ts")).createStepRunner(cwd, undefined, undefined, (line) => console.log(line));
 
   return {
     runStep,
@@ -97,6 +97,7 @@ async function drive(t: Template, state: RunState, id: string, dry: boolean) {
     const n = gate.show ? s.history[gate.show]?.length : 0;
     const dir = join(runsDir(cwd), id);
     console.log(`\n⏸  Paused at human checkpoint '${gate.id}' (run ${id})`);
+    if (s.dry) console.log(`    DRY RUN: all outputs so far are placeholders. Resume only with --dry-run; start a real run with \`stepflow run\`.`);
     console.log(`\nWhat to do:`);
     console.log(`  ${gate.instructions ?? "Review the output, then decide."}`);
     if (gate.show) console.log(`  Review: ${join(dir, `${gate.show}-${n}.md`)}`);
@@ -130,14 +131,17 @@ if (cmd === "list") {
   const input = o["input-file"] ? readFileSync(o["input-file"], "utf8") : (o.input ?? "");
   let state: RunState;
   try { state = newState(t, input, params); } catch (e) { die((e as Error).message + "\n\n" + describe(t)); }
-  const id = `${(t.id ?? t.name).replace(/\//g, "_")}-${new Date().toISOString().replace(/[:.]/g, "-")}`;
-  console.log(`Run ${id}`);
-  await drive(t, state, id, !!o["dry-run"]);
+  if (o["dry-run"]) state.dry = true;
+  const id = `${o["dry-run"] ? "dry-" : ""}${(t.id ?? t.name).replace(/\//g, "_")}-${new Date().toISOString().replace(/[:.]/g, "-")}`;
+  console.log(`Run ${id}${o["dry-run"] ? "  (DRY RUN: nothing real is executed, outputs are placeholders)" : ""}`);
+  await drive(t, state, id, !!state.dry);
 } else if (cmd === "resume") {
   if (!arg) die("Usage: stepflow resume <runId> [--approve | --revise text | --abort]");
   const state = loadRun(cwd, arg);
   const t = findTemplate(templates(), state.template) ?? die(`Template '${state.template}' not found`);
   if (state.status === "done" || state.status === "aborted") die(`Run is already ${state.status}`);
+  const dryProblem = dryRunProblem(state.dry, !!o["dry-run"]);
+  if (dryProblem) die(dryProblem);
   let d: GateDecision | undefined;
   if (o.approve) d = { action: "approve" };
   else if (o.abort) d = { action: "abort" };
@@ -174,7 +178,7 @@ if (cmd === "list") {
       }
     }
   }
-  await drive(t, state, arg, !!o["dry-run"]);
+  await drive(t, state, arg, !!state.dry);
 } else if (cmd === "chat") {
   if (!arg) die("Usage: stepflow chat <runId>");
   const state = loadRun(cwd, arg);

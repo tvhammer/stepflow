@@ -83,6 +83,8 @@ export interface RunState {
   loops: Record<string, number>;
   /** Decision supplied on resume, consumed by the gate at the cursor. */
   decision?: GateDecision;
+  /** Created with --dry-run: outputs are placeholders; such a run can never be continued for real. */
+  dry?: boolean;
   status: "running" | "paused" | "done" | "aborted";
 }
 

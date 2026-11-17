@@ -105,3 +105,9 @@ Folders are searched recursively. A template's id is its path without extension
 (`photo/cull`); `name:` is optional and defaults to the id. Invalid YAML files are
 skipped with a message instead of breaking the whole list. Run ids look like
 `photo_cull-<timestamp>`.
+
+## Safety notes
+
+- A run created with `--dry-run` is marked as dry (`dry-` id prefix, `"dry": true` in its state). `resume` refuses to
+  continue a dry run for real, and a real run with `--dry-run`, so placeholders never get approved as real work.
+- Agent steps print a heartbeat every 30 s (`… code_review still working (3:30, 12 tool calls, last: read config.py)`).

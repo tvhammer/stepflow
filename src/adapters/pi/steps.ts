@@ -1,8 +1,13 @@
 /** Runs one agent step in a fresh in-memory pi session. Shared by the pi extension and the CLI. */
 import { createAgentSession, ModelRuntime, SessionManager } from "@earendil-works/pi-coding-agent";
 import type { Hooks } from "../../index.ts";
+import { heartbeatLine, summarizeTool } from "../../core/progress.ts";
 
-export async function createStepRunner(cwd: string, fallbackModel?: any, signal?: AbortSignal): Promise<Hooks["runStep"]> {
+/** onProgress receives a heartbeat line every `heartbeatMs` while an agent step is running. */
+export async function createStepRunner(
+  cwd: string, fallbackModel?: any, signal?: AbortSignal,
+  onProgress?: (line: string) => void, heartbeatMs = 30_000,
+): Promise<Hooks["runStep"]> {
   const modelRuntime = await ModelRuntime.create();
   return async ({ step, prompt, model, tools }) => {
     let m = fallbackModel;
@@ -15,10 +20,23 @@ export async function createStepRunner(cwd: string, fallbackModel?: any, signal?
       cwd, model: m, modelRuntime, tools, sessionManager: SessionManager.inMemory(cwd),
     });
     signal?.addEventListener("abort", () => session.abort());
+    const started = Date.now();
+    let toolCalls = 0;
+    let lastTool: string | undefined;
+    const unsubscribe = session.subscribe((e: any) => {
+      if (e.type === "tool_execution_start") { toolCalls++; lastTool = summarizeTool(e.toolName, e.args); }
+    });
+    const timer = onProgress
+      ? setInterval(() => onProgress(heartbeatLine(step.id, Date.now() - started, toolCalls, lastTool)), heartbeatMs)
+      : undefined;
     try {
       await session.prompt(prompt);
       return session.getLastAssistantText() ?? "";
-    } finally { session.dispose(); }
+    } finally {
+      if (timer) clearInterval(timer);
+      unsubscribe();
+      session.dispose();
+    }
   };
 }
 

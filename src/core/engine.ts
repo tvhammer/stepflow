@@ -90,9 +90,15 @@ export async function runWorkflow(t: Template, state: RunState, hooks: Hooks): P
       else if (d.action === "abort") state.status = "aborted";
       else if (d.action === "approve") state.cursor++;
       else {
-        const target = step.reviseTo ?? [...t.steps.slice(0, state.cursor)].reverse().find((x) => "prompt" in x)?.id;
-        if (!target || !bump(`${step.id}->${target}`, step.max ?? 3)) { state.status = "aborted"; emit("loop:limit", step.id); }
-        else { state.outputs[step.id] = { feedback: d.feedback }; state.cursor = indexOf(target); }
+        const dflt = step.reviseTo ?? [...t.steps.slice(0, state.cursor)].reverse().find((x) => "prompt" in x)?.id;
+        const allowed = [dflt, ...(step.reviseOptions ?? [])].filter((x): x is string => !!x);
+        const target = d.to ?? dflt;
+        if (!target || !allowed.includes(target)) throw new Error(`Gate '${step.id}': cannot revise to '${d.to}'. Allowed: ${allowed.join(", ")}`);
+        if (!bump(`${step.id}->${target}`, step.max ?? 3)) {
+          // Escalate to the human instead of aborting: stay at the gate, only approve/abort make sense now.
+          state.status = "paused";
+          emit("loop:limit", step.id, `send-back limit (${step.max ?? 3}) to '${target}' reached; approve (override) or abort`);
+        } else { state.outputs[step.id] = { feedback: d.feedback }; state.cursor = indexOf(target); }
       }
     } else if ("parallel" in step) {
       const results = await Promise.all(step.parallel.map(async (p) => [p.id, await exec(p)] as const));

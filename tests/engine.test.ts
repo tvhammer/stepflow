@@ -82,3 +82,32 @@ test("structured output is parsed from model text", async () => {
   const s = await runWorkflow(tpl("dev-flow"), dev(), hooks);
   assert.equal((s.outputs.review as any).verdict, "pass");
 });
+
+const multi = () => parseTemplate(`
+name: m
+steps:
+  - { id: plan, prompt: "plan {{g.feedback}}" }
+  - { id: impl, prompt: "impl {{g.feedback}}" }
+  - { id: g, gate: human, show: impl, reviseTo: impl, reviseOptions: [plan], max: 1 }
+`);
+
+test("gate can revise to an alternate target (reviseOptions)", async () => {
+  const { hooks, calls } = fake([{ action: "revise", feedback: "f", to: "plan" }]);
+  const s = await runWorkflow(multi(), newState(multi(), "x"), hooks);
+  assert.deepEqual(calls, ["plan", "impl", "plan", "impl"]);
+  assert.equal(s.status, "done");
+});
+
+test("revise to a target outside reviseTo/reviseOptions is rejected", async () => {
+  const { hooks } = fake([{ action: "revise", feedback: "f", to: "g" }]);
+  await assert.rejects(runWorkflow(multi(), newState(multi(), "x"), hooks), /cannot revise/);
+});
+
+test("send-back limit at a gate pauses (escalates) instead of aborting", async () => {
+  const { hooks, calls } = fake([{ action: "revise", feedback: "a" }, { action: "revise", feedback: "b" }]);
+  const s = await runWorkflow(multi(), newState(multi(), "x"), hooks);
+  assert.equal(s.status, "paused");
+  assert.deepEqual(calls, ["plan", "impl", "impl"]);
+  s.decision = { action: "approve" };
+  assert.equal((await runWorkflow(multi(), s, hooks)).status, "done");
+});

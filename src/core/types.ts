@@ -31,6 +31,9 @@ export interface GateStep extends Base {
   show?: string;
   /** Where to go on "revise" (feedback is stored at state[<gateId>].feedback). Default: previous agent step. */
   reviseTo?: string;
+  /** Further steps the human may send the run back to (`--revise "..." --to <id>`). */
+  reviseOptions?: string[];
+  /** Max send-backs per target. When reached, the run stays paused: only approve/abort remain. */
   max?: number;
   /** Text shown to the human when the workflow pauses here. */
   instructions?: string;
@@ -61,7 +64,7 @@ export type Value = string | Record<string, unknown>;
 
 export type GateDecision =
   | { action: "approve" }
-  | { action: "revise"; feedback: string }
+  | { action: "revise"; feedback: string; to?: string }
   | { action: "abort" }
   /** Save state and stop; resume later with a decision. */
   | { action: "pause" };

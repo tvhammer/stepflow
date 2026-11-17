@@ -4,11 +4,14 @@
  *   stepflow list
  *   stepflow run <template> [-p NAME=value]... [--input text | --input-file f] [--dry-run]
  *   stepflow resume <runId> [--approve | --revise "feedback" | --abort]
+ *   stepflow resume <runId> --revise "feedback" --to <step>   (gates with reviseOptions)
+ *   stepflow chat <runId>      discuss the open gate with pi; it can write decision.json for a later plain `resume`
  *   stepflow status [runId]
  * At a human gate the run is saved, instructions are printed, and the process exits.
  */
 import { parseArgs } from "node:util";
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync, renameSync, readdirSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -29,6 +32,7 @@ const { values: o, positionals: pos } = parseArgs({
     "dry-run": { type: "boolean" },
     approve: { type: "boolean" },
     revise: { type: "string" },
+    to: { type: "string" },
     abort: { type: "boolean" },
     help: { type: "boolean", short: "h" },
   },
@@ -43,6 +47,9 @@ function usage() {
   stepflow list
   stepflow run <template> [-p NAME=value]... [--input text | --input-file file] [--dry-run] [--cwd dir] [-t templatesDir]...
   stepflow resume <runId> [--approve | --revise "feedback" | --abort]
+  stepflow resume <runId> --revise "feedback" --to <step>   (send back to another allowed step)
+  stepflow resume <runId>                                    (uses decision.json written by "stepflow chat")
+  stepflow chat <runId>
   stepflow status [runId]\n\nTemplate dirs: -t <dir> (repeatable), $STEPFLOW_TEMPLATES, <cwd>/workflows, bundled examples.`);
 }
 
@@ -69,7 +76,7 @@ async function makeHooks(id: string, dry: boolean): Promise<Hooks> {
       if (e.type === "step:start") console.log(`▶ ${e.stepId}`);
       if (e.type === "step:done") console.log(`✓ ${e.stepId}`);
       if (e.type === "step:skip") console.log(`– ${e.stepId} (skipped)`);
-      if (e.type === "loop:limit") console.log(`! loop limit reached at '${e.stepId}'`);
+      if (e.type === "loop:limit") console.log(`! loop limit reached at '${e.stepId}'${e.detail ? `: ${e.detail}` : ""}`);
     },
     onOutput: (stepId, v, n) => { writeArtifact(cwd, id, stepId, n, v); },
     onState: (s) => saveRun(cwd, id, s),
@@ -96,8 +103,11 @@ async function drive(t: Template, state: RunState, id: string, dry: boolean) {
     console.log(`  Artifacts: ${dir}/`);
     console.log(`\nWhen you are done, resume with one of:`);
     console.log(`  stepflow resume ${id} --approve`);
-    console.log(`  stepflow resume ${id} --revise "what should change"`);
+    const targets = [gate.reviseTo ?? [...t.steps.slice(0, s.cursor)].reverse().find((x: any) => "prompt" in x)?.id, ...(gate.reviseOptions ?? [])].filter(Boolean);
+    console.log(`  stepflow resume ${id} --revise "what should change"${targets.length > 1 ? `   (default target: ${targets[0]})` : ""}`);
+    for (const x of targets.slice(1)) console.log(`  stepflow resume ${id} --revise "what should change" --to ${x}`);
     console.log(`  stepflow resume ${id} --abort`);
+    console.log(`  stepflow chat ${id}      (discuss first; the chat can record the decision)`);
     if (o.cwd) console.log(`  (add --cwd ${cwd})`);
     process.exit(0);
   }
@@ -131,7 +141,24 @@ if (cmd === "list") {
   let d: GateDecision | undefined;
   if (o.approve) d = { action: "approve" };
   else if (o.abort) d = { action: "abort" };
-  else if (o.revise !== undefined) d = { action: "revise", feedback: o.revise };
+  else if (o.revise !== undefined) d = { action: "revise", feedback: o.revise, to: o.to };
+  const runDir = join(runsDir(cwd), arg);
+  const decFile = join(runDir, "decision.json");
+  if (!d && state.status === "paused" && existsSync(decFile)) {
+    try {
+      const j = JSON.parse(readFileSync(decFile, "utf8"));
+      if (j.action === "approve" || j.action === "abort") d = { action: j.action };
+      else if (j.action === "revise") d = { action: "revise", feedback: String(j.feedback ?? ""), to: j.to || undefined };
+      else die(`decision.json: unknown action '${j.action}'`);
+      console.log(`Using decision from chat: ${JSON.stringify(d)}`);
+      renameSync(decFile, join(runDir, `decision.used-${Date.now()}.json`));
+    } catch (e) { die(`Bad ${decFile}: ${(e as Error).message}`); }
+  }
+  if (d?.action === "revise") {
+    const g: any = t.steps[state.cursor];
+    const ok = [g.reviseTo ?? [...t.steps.slice(0, state.cursor)].reverse().find((x: any) => "prompt" in x)?.id, ...(g.reviseOptions ?? [])].filter(Boolean);
+    if (d.to && !ok.includes(d.to)) die(`Cannot revise to '${d.to}'. Allowed: ${ok.join(", ")}`);
+  }
   if (state.status === "paused" && !d) die("This run is waiting at a human checkpoint. Add --approve, --revise \"...\" or --abort.");
   state.decision = d;
   // Human edits to the reviewed artifact are picked up on approve (string outputs only).
@@ -148,6 +175,28 @@ if (cmd === "list") {
     }
   }
   await drive(t, state, arg, !!o["dry-run"]);
+} else if (cmd === "chat") {
+  if (!arg) die("Usage: stepflow chat <runId>");
+  const state = loadRun(cwd, arg);
+  const t = findTemplate(templates(), state.template) ?? die(`Template '${state.template}' not found`);
+  const gate: any = t.steps[state.cursor];
+  if (state.status !== "paused" || !gate?.gate) die(`Run is ${state.status}, not waiting at a human checkpoint.`);
+  const dir = join(runsDir(cwd), arg);
+  const targets = [gate.reviseTo ?? [...t.steps.slice(0, state.cursor)].reverse().find((x: any) => "prompt" in x)?.id, ...(gate.reviseOptions ?? [])].filter(Boolean);
+  const files = readdirSync(dir).filter((f) => f.endsWith(".md")).sort().map((f) => `- ${join(dir, f)}`).join("\n");
+  const prompt = `You are helping a human decide at the human checkpoint '${gate.id}' of the stepflow workflow run ${arg} (template ${state.template}).
+Gate instructions: ${gate.instructions ?? "(none)"}
+Original request: ${state.input}
+The step under review is '${gate.show ?? "?"}'. All step outputs (latest iteration has the highest number) are in:
+${files}
+Start by reading the output under review and summarising it and any reviewer findings in a few lines. Then discuss with the human. Do not modify project files.
+When the human states a final decision, write it with the write tool to ${join(dir, "decision.json")} as JSON:
+{"action": "approve" | "revise" | "abort", "feedback": "<text for the next attempt, for revise>", "to": "<step id, optional, for revise>"}
+Allowed revise targets: ${targets.join(", ")} (default: ${targets[0]}). "approve" also means overriding a 'changes_required' verdict.
+Only write the file after the human clearly says so, then tell them to exit and run: stepflow resume ${arg}`;
+  const r = spawnSync("pi", [prompt], { stdio: "inherit", cwd });
+  console.log(existsSync(join(dir, "decision.json")) ? `\nDecision recorded. Continue with: stepflow resume ${arg}` : `\nNo decision recorded. Use: stepflow resume ${arg} --approve | --revise "..." | --abort`);
+  process.exit(r.status ?? 0);
 } else if (cmd === "status") {
   const runs = arg ? [{ id: arg, state: loadRun(cwd, arg) }] : listRuns(cwd);
   for (const r of runs) {

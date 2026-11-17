@@ -35,6 +35,14 @@ models before starting and tells you which ones are unavailable.
     stepflow resume <runId> --abort
     stepflow status
 
+A gate can offer more send-back targets (`reviseOptions: [plan]`):
+
+    stepflow resume <runId> --revise "plan is wrong" --to plan
+
+When a gate reaches its `max` send-backs the run stays paused there (only approve/abort remain).
+`stepflow chat <runId>` opens pi to discuss the open gate; the chat can write `decision.json`,
+which a plain `stepflow resume <runId>` then applies.
+
 Runs are stored in `<cwd>/.stepflow/runs/<runId>.json`; every step output is
 also written as `<runId>/<step>-<iteration>.md`.
 

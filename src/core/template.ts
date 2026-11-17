@@ -39,7 +39,7 @@ export function validate(t: Template): void {
     } else if (!("gate" in s) && !("run" in s) && !(s as any).prompt) err(`'${s.id}': needs prompt, run, gate or parallel`);
   }
   for (const s of t.steps as any[]) {
-    for (const ref of [s.on?.goto, s.reviseTo, s.show]) {
+    for (const ref of [s.on?.goto, s.reviseTo, s.show, ...(s.reviseOptions ?? [])]) {
       if (ref && !ids.has(ref)) err(`'${s.id}' references unknown step '${ref}'`);
     }
   }

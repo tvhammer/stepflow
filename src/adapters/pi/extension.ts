@@ -35,9 +35,15 @@ async function execute(pi: ExtensionAPI, ctx: ExtensionCommandContext, t: Templa
         if (choice === "Approve") return { action: "approve" };
         if (choice === "View full output") { await ctx.ui.editor(`Output of ${step.show}`, short(shown, 1e6)); continue; }
         if (choice === "Revise…") {
-          const feedback = await ctx.ui.input("What should change?", "");
+          const targets = [step.reviseTo, ...(step.reviseOptions ?? [])].filter((x): x is string => !!x);
+          let to: string | undefined;
+          if (targets.length > 1) {
+            to = await ctx.ui.select(`Send back to which step? (default: ${targets[0]})`, targets);
+            if (to === undefined) continue;
+          }
+          const feedback = await ctx.ui.input(`What should change${to ? ` (back to ${to})` : ""}?`, "");
           if (feedback === undefined) continue;
-          return { action: "revise", feedback };
+          return { action: "revise", feedback, to };
         }
         if (choice?.startsWith("Pause")) return { action: "pause" };
         return { action: "abort" };
@@ -46,7 +52,7 @@ async function execute(pi: ExtensionAPI, ctx: ExtensionCommandContext, t: Templa
 
     onEvent: (e) => {
       if (e.type === "step:start") ctx.ui.setStatus("stepflow", `${t.name}: ${e.stepId}…`);
-      if (e.type === "loop:limit") ctx.ui.notify(`Loop limit reached at '${e.stepId}'`, "warning");
+      if (e.type === "loop:limit") ctx.ui.notify(`Loop limit reached at '${e.stepId}'${e.detail ? `: ${e.detail}` : ""}`, "warning");
     },
     onOutput: (stepId, v, n) => { writeArtifact(ctx.cwd, id, stepId, n, v); },
     onState: (s) => saveRun(ctx.cwd, id, s),
